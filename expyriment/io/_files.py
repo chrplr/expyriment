@@ -365,14 +365,31 @@ class DataFile(OutputFile):
                             module_hashes_as_string()))
         self.write_comment("--SUBJECT INFO")
         self.write_comment("s id: {0}".format(self._subject))
-        self.write_comment(self.variable_names)
+        self.write_comment("#")
         self._variable_names_changed = True
+        self._variable_name_file = None
+
         self.save()
 
     @property
     def delimiter(self):
         """Getter for delimiter"""
         return self._delimiter
+
+    @property
+    def variable_name_file(self):
+        """The name of the variable name file, if variable names are detached.
+
+        See Also
+        --------
+
+        detach_variable_names
+
+        """
+
+        return os.path.split(sys.argv[0])[1].replace(".py", "") + "_varnames_" + \
+            get_experiment_secure_hash() + ".csv"
+
 
     @staticmethod
     def _typecheck_and_cast2str(data): # TODO is that function still needed?
@@ -495,7 +512,7 @@ class DataFile(OutputFile):
         self._variable_names.extend(variable_names)
         self._variable_names_changed = True
 
-    def save(self):
+    def save(self, detach_variable_names=False):
         """Save the new data to data-file.
 
         Returns
@@ -505,9 +522,11 @@ class DataFile(OutputFile):
 
         """
 
-
-        print(self._variable_names_changed)
         start = get_time()
+
+        if detach_variable_names:
+            self._variable_name_file = self.variable_name_file
+
         if len(self._subject_info) > 0 or len(self._experiment_info) > 0  \
                 or self._variable_names_changed:
             # Re-write header and varnames
@@ -536,11 +555,18 @@ class DataFile(OutputFile):
                             self._subject_info = []
                         section = None
 
-                        # Re-write variable names after #s-section
-                        fl.write(unicode2byte(
-                            self.variable_names + defaults.outputfile_eol))
+                        if self._variable_name_file is None:
+                            # Re-write variable names after #s-section
+                            fl.write(unicode2byte(
+                                self.variable_names + defaults.outputfile_eol))
+                        else:
+                            with open(self._directory + os.path.sep + self._variable_name_file,
+                                      'wb+') as var_fl:
+                                var_fl.write(unicode2byte(self.variable_names))
+                                print(line)
                         self._variable_names_changed = False
                         line = ''  # Skip old varnames
+
                 fl.write(unicode2byte(line))
             tmpfl.close()
             fl.close()
